@@ -5,6 +5,22 @@
     "version": "1.0.0",
     "assetBundlePatterns": [
       "**/*"
-    ]
+    ],
+    "expo": {
+      "android": {
+        "googleServicesFile": "./google-services.json"
+      },
+      "ios": {
+        "googleServicesFile": "./GoogleService-Info.plist"
+      },
+      "plugins": [
+        "@react-native-firebase/app",
+        "@react-native-firebase/perf",
+        "@react-native-firebase/crashlytics"
+      ]
+    },
+    "android": {
+      "package": "com.easyfun"
+    }
   }
 }
