@@ -3,36 +3,47 @@ import { VStack, Heading, Icon, useTheme } from "native-base";
 import { Envelope, Key } from 'phosphor-react-native';
 import { Input } from "../../components/input";
 import { Button } from "../../components/button";
-//import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-//import { FirebaseApp, FirebaseError } from 'firebase/app';
-//import app from '../../firebase';
+import auth from '@react-native-firebase/auth';
+import { Alert } from "react-native";
+    
+export default function SignIn() {
 
-export default function Signin() {
-
+    const [isLoading, setIsLoading] = useState(false);
     const { colors } = useTheme();
-    //const auth = getAuth(app);
+
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
 
     
     function handleSignin() {
-        //setError('');
-        /*
-        signInWithEmailAndPassword(auth, email, password)
-            .then((userCredential) => {
+        if (!email || !password) {
+            return Alert.alert("SignIn", "E-mail e senha requeridos!")
+        }
 
-                userCredential.user.getIdToken().then(idToken => {
-                    //window.sessionStorage.setItem('idToken',idToken );
-                    //navigate('/check-in-pendentes');
-                })
+        auth()
+        .signInWithEmailAndPassword(email, password)
+        .then(response => {
+            console.log(response)
+        })
+        .catch( (error) => {
+            console.log(error);
+            setIsLoading(false);
 
-            })
-            .catch((error: FirebaseError) => {
+            if(error.code === 'auth/invalid-email'){
+                return Alert.alert('Entrar', 'E-mail inválido!');
+            }
 
-                //console.log(error.message);
-                //setError("Usuário ou senha inválidos");
-            })
-        */
+            if(error.code === 'auth/wrong-password'){
+                return Alert.alert('Entrar', 'E-mail ou senha inválida!');
+            }
+
+            if(error.code === 'auth/user-not-found'){
+                return Alert.alert('Entrar', 'E-mail ou senha inválida!');
+            }
+
+            return Alert.alert('Entrar', 'Não foi possível acessar!');
+
+        });
     };
 
     return (
@@ -56,6 +67,7 @@ export default function Signin() {
                 title="Sign in"
                 w="full"
                 onPress={handleSignin}
+                isLoading={isLoading}
             />
         </VStack>
     )

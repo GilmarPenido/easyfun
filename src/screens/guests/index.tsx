@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Alert, StyleSheet,View, AlertButton } from 'react-native';
 import { HStack, IconButton, VStack, useTheme, Text, Heading, FlatList, Center } from 'native-base';
 import { ChatTeardropText, SignOut } from 'phosphor-react-native';
+import auth from '@react-native-firebase/auth';
 
 import { Filter } from '../../components/filter';
 import { Card, CardProps } from '../../components/card';
@@ -8,25 +10,167 @@ import { Button } from '../../components/button';
 
 import { useNavigation } from '@react-navigation/native';
 
-import { GUESTS } from '../../constants/guests'
+import { dateFormat } from '../../utils/firestoreDateFormat';
+
+import firestore, { FirebaseFirestoreTypes } from '@react-native-firebase/firestore';
+import { batchGuestsInFirestore } from '../../utils/batchGuestsInFirestore';
+import { BarCodeScanner } from 'expo-barcode-scanner';
+
+const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      flexDirection: 'column',
+      justifyContent: 'center',
+    },
+  });
 
 export default function Guests() {
-
+    const [scanning, setScanning] = useState(false);
+    const [hasPermission, setHasPermission] = useState(null);
+    const [scanned, setScanned] = useState(false);
     const [statusSelected, setStatusSelected] = useState<'waiting'|'arrived'>('waiting');
-    const [guests, setGuests] = useState<CardProps[]>( GUESTS.filter(g => g?.presence && g.presence === 'yes'));
+    const [guests, setGuests] = useState<CardProps[]>([]);
+    const [guest, setGuest] = useState<CardProps>({} as CardProps);
 
 
     const { colors } = useTheme();
     const navigation = useNavigation();
     
-    function handleQrcode() {
-        //navigation.navigate('qrcode');
+    function handleBarCodeScanned({ type, data }) {
 
-       
+
+        setScanned(true);
+        console.log(type, data)
+        Alert.alert('Confirmar Pesença', `Deseja confirmar está presença!`, [
+            {
+                text: "OK", 
+                onPress: () => {
+
+                    const firestoreDoc = 
+
+                    firestore()
+                    .collection('guests')
+                    .doc(data);
+                    
+                    firestoreDoc
+                    .get()
+                    .then( ( doc: FirebaseFirestoreTypes.DocumentSnapshot<CardProps>) => {
+
+                        const { status } = doc.data();
+
+                        if( status === 'arrived') {
+                            return Alert.alert("Confirmação", "Convidado já confirmado!")
+                        }
+
+                        if( status === 'waiting') {
+                            firestoreDoc.
+                            update({
+                                status: 'arrived',
+                                confirmad_at: firestore.FieldValue.serverTimestamp(),
+                            })
+                            .then(() => 
+                                Alert.alert('Confirmação', 'Confirmação feita com sucesso.')
+                            )
+                            .catch(error => {
+                                return Alert.alert("Detalhes", "Houve um erro ao carregar dados do convidado!");
+                            })
+                            
+
+                        } else {
+                            return Alert.alert("Detalhes", "Dados incorretos!");
+                        }
+
+                    }
+                    ).catch(error => {
+                        console.log(error);
+                        Alert.alert('Confirmação', 'Houve um erro ao carregar dados do convidado!')
+                    })
+                    .finally( ()=> setScanning(false))
+
+
+
+                },
+                style: 'default'
+
+            },
+        ],
+            {
+                cancelable: true,
+                onDismiss: () =>
+                setScanning(false)
+            }
+        );
+        
+
     }
+
+    function handleGoBackScanner() {
+        console.log('passou aqui');
+        setScanning(false);
+    }
+
+    useEffect(() => {
+        const getBarCodeScannerPermissions = async () => {
+          const { status } = await BarCodeScanner.requestPermissionsAsync();
+          setHasPermission(status === 'granted');
+        };
+    
+        getBarCodeScannerPermissions();
+      }, []);
+
+    useEffect(() => {
+
+        const subscribe = firestore()
+        .collection("guests")
+        .where("status", "==", statusSelected)
+        .onSnapshot(snapshot => {
+            const data = snapshot.docs.map((doc: any) => {
+                console.log(doc.data());
+                
+                const {name, email, status, presence, phone } = doc.data();
+                return {
+                    id: doc.id,
+                    name,
+                    email,
+                    status,
+                    presence, 
+                    phone
+                }
+            })
+
+            console.log(data);
+            setGuests(data);
+        });
+
+        return subscribe;
+
+    }, [statusSelected])
 
     function handleOpenDetails(id: string) {
         navigation.navigate('details', { id });
+    }
+
+    function handleSignOut() {
+        auth()
+        .signOut()
+        .catch(error => {
+            console.log(error);
+            return Alert.alert("Sair", "Não foi possível sair.")
+        });
+    }
+
+    if (scanning) {
+        return (
+            <VStack flex={1}>
+              <BarCodeScanner
+                onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
+                style={StyleSheet.absoluteFillObject}
+                />
+                <Button title='Voltar' onPress={handleGoBackScanner} color="error.500" />
+            </VStack>
+
+            
+          );
     }
 
     return (
@@ -42,14 +186,15 @@ export default function Guests() {
             >
                 <Heading color="gray.100">EasyFun</Heading>
                 <IconButton
-                    icon={<SignOut size={26} color={colors.gray[300]} />}
+                    onPress={handleSignOut}
+                    icon={<SignOut size={26} color={colors.gray[300]}/>}
                 />
             </HStack>
 
             <VStack flex={1} px={6}>
                 <HStack w='full' mt={8} mb={4} justifyContent="space-between" alignItems='center'>
                     <Heading color='gray.100'>
-                        Solicitações
+                        Convidados
                     </Heading>
                     <Text color="gray.200">
                         {guests.length}
@@ -90,7 +235,7 @@ export default function Guests() {
                         </Center>
                     )}
                 />
-                <Button title="QRCODE" mt="2" onPress={handleQrcode}/>
+                <Button title="QRCODE" mt="2" onPress={() => setScanning(!scanning)}/>
             </VStack>
         </VStack>
         );
