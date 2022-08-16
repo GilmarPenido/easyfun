@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, StyleSheet,View, AlertButton } from 'react-native';
+import { Alert, StyleSheet, View, AlertButton } from 'react-native';
 import { HStack, IconButton, VStack, useTheme, Text, Heading, FlatList, Center } from 'native-base';
 import { ChatTeardropText, SignOut } from 'phosphor-react-native';
 import auth from '@react-native-firebase/auth';
@@ -18,89 +18,99 @@ import { BarCodeScanner } from 'expo-barcode-scanner';
 
 const styles = StyleSheet.create({
     container: {
-      flex: 1,
-      flexDirection: 'column',
-      justifyContent: 'center',
+        flex: 1,
+        flexDirection: 'column',
+        justifyContent: 'center',
     },
-  });
+});
 
 export default function Guests() {
     const [scanning, setScanning] = useState(false);
     const [hasPermission, setHasPermission] = useState(null);
     const [scanned, setScanned] = useState(false);
-    const [statusSelected, setStatusSelected] = useState<'waiting'|'arrived'>('waiting');
+    const [statusSelected, setStatusSelected] = useState<'waiting' | 'arrived'>('waiting');
     const [guests, setGuests] = useState<CardProps[]>([]);
     const [guest, setGuest] = useState<CardProps>({} as CardProps);
 
 
     const { colors } = useTheme();
     const navigation = useNavigation();
-    
+
     function handleBarCodeScanned({ type, data }) {
 
-
         setScanned(true);
-        console.log(type, data)
-        Alert.alert('Confirmar Pesença', `Deseja confirmar está presença!`, [
-            {
-                text: "OK", 
-                onPress: () => {
+        console.log(1, type, data)
 
-                    const firestoreDoc = 
+        const regex = /[\@\!\#\$\%\^\&\*\(\)\/\\\[\]\.\º\@\:\~]/g;
 
-                    firestore()
-                    .collection('guests')
-                    .doc(data);
-                    
-                    firestoreDoc
-                    .get()
-                    .then( ( doc: FirebaseFirestoreTypes.DocumentSnapshot<CardProps>) => {
+        if(regex.test(data)) {
+            return Alert.alert("Detalhes", "QRCode inválido!");
+        }
 
-                        const { status } = doc.data();
 
-                        if( status === 'arrived') {
-                            return Alert.alert("Confirmação", "Convidado já confirmado!")
-                        }
+        firestore()
+            .collection('guests')
+            .doc(data)
+            .get()
+            .then((doc: FirebaseFirestoreTypes.DocumentSnapshot<CardProps>) => {
 
-                        if( status === 'waiting') {
-                            firestoreDoc.
-                            update({
-                                status: 'arrived',
-                                confirmad_at: firestore.FieldValue.serverTimestamp(),
-                            })
-                            .then(() => 
-                                Alert.alert('Confirmação', 'Confirmação feita com sucesso.')
-                            )
-                            .catch(error => {
-                                return Alert.alert("Detalhes", "Houve um erro ao carregar dados do convidado!");
-                            })
-                            
+                const { status, name } = doc.data();
 
-                        } else {
-                            return Alert.alert("Detalhes", "Dados incorretos!");
-                        }
 
+                if (status !== 'arrived' && status !== 'waiting') {
+                    return Alert.alert("Detalhes", "Dados incorretos!");
+                }
+
+                if (status === 'arrived') {
+                    return Alert.alert("Confirmação", "Convidado já confirmado!")
+                }
+
+                Alert.alert('Confirmar Pesença', `Deseja confirmar a presença de ${name}!`, [
+                    {
+                        text: "OK",
+                        onPress: () => {
+
+                            firestore()
+                            .collection('guests')
+                            .doc(data)
+                            .update({
+                                    status: 'arrived',
+                                    confirmad_at: firestore.FieldValue.serverTimestamp(),
+                                })
+                                .then(() =>
+                                    Alert.alert('Confirmação', 'Confirmação feita com sucesso.')
+                                )
+                                .catch(error => {
+                                    return Alert.alert("Detalhes", "Houve um erro ao carregar dados do convidado!");
+                                })
+
+                        },
+                        style: 'default'
+
+                    },
+                    {
+                        text: "Cancelar",
+                        'onPress': function () {
+                            setScanning(false)
+                        },
+                        style: 'cancel',
                     }
-                    ).catch(error => {
-                        console.log(error);
-                        Alert.alert('Confirmação', 'Houve um erro ao carregar dados do convidado!')
-                    })
-                    .finally( ()=> setScanning(false))
+                ],
+                    {
+                        cancelable: true,
+                        onDismiss: () =>
+                            setScanning(false)
+                    }
+                );
 
-
-
-                },
-                style: 'default'
-
-            },
-        ],
-            {
-                cancelable: true,
-                onDismiss: () =>
-                setScanning(false)
             }
-        );
-        
+            ).catch(error => {
+                console.log(error);
+                Alert.alert('Confirmação', 'Houve um erro ao carregar dados do convidado!')
+            })
+            .finally(() => setScanning(false));
+
+
 
     }
 
@@ -111,36 +121,36 @@ export default function Guests() {
 
     useEffect(() => {
         const getBarCodeScannerPermissions = async () => {
-          const { status } = await BarCodeScanner.requestPermissionsAsync();
-          setHasPermission(status === 'granted');
+            const { status } = await BarCodeScanner.requestPermissionsAsync();
+            setHasPermission(status === 'granted');
         };
-    
+
         getBarCodeScannerPermissions();
-      }, []);
+    }, []);
 
     useEffect(() => {
 
         const subscribe = firestore()
-        .collection("guests")
-        .where("status", "==", statusSelected)
-        .onSnapshot(snapshot => {
-            const data = snapshot.docs.map((doc: any) => {
-                console.log(doc.data());
-                
-                const {name, email, status, presence, phone } = doc.data();
-                return {
-                    id: doc.id,
-                    name,
-                    email,
-                    status,
-                    presence, 
-                    phone
-                }
-            })
+            .collection("guests")
+            .where("status", "==", statusSelected)
+            .onSnapshot(snapshot => {
+                const data = snapshot.docs.map((doc: any) => {
+                    console.log(doc.data());
 
-            console.log(data);
-            setGuests(data);
-        });
+                    const { name, email, status, presence, phone } = doc.data();
+                    return {
+                        id: doc.id,
+                        name,
+                        email,
+                        status,
+                        presence,
+                        phone
+                    }
+                })
+
+                console.log(data);
+                setGuests(data);
+            });
 
         return subscribe;
 
@@ -152,25 +162,25 @@ export default function Guests() {
 
     function handleSignOut() {
         auth()
-        .signOut()
-        .catch(error => {
-            console.log(error);
-            return Alert.alert("Sair", "Não foi possível sair.")
-        });
+            .signOut()
+            .catch(error => {
+                console.log(error);
+                return Alert.alert("Sair", "Não foi possível sair.")
+            });
     }
 
     if (scanning) {
         return (
             <VStack flex={1}>
-              <BarCodeScanner
-                onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
-                style={StyleSheet.absoluteFillObject}
+                <BarCodeScanner
+                    onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
+                    style={StyleSheet.absoluteFillObject}
                 />
                 <Button title='Voltar' onPress={handleGoBackScanner} color="error.500" />
             </VStack>
 
-            
-          );
+
+        );
     }
 
     return (
@@ -187,7 +197,7 @@ export default function Guests() {
                 <Heading color="gray.100">EasyFun</Heading>
                 <IconButton
                     onPress={handleSignOut}
-                    icon={<SignOut size={26} color={colors.gray[300]}/>}
+                    icon={<SignOut size={26} color={colors.gray[300]} />}
                 />
             </HStack>
 
@@ -214,15 +224,15 @@ export default function Guests() {
                         isActive={statusSelected === 'arrived'}
                     />
                 </HStack>
-                <FlatList 
-                    data={guests} 
+                <FlatList
+                    data={guests}
                     keyExtractor={(item) => item.id}
-                    renderItem={( { item }) => <Card data={item} onPress={() => handleOpenDetails(item.id)}/>}
+                    renderItem={({ item }) => <Card data={item} onPress={() => handleOpenDetails(item.id)} />}
                     showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{paddingBottom: 100}}
+                    contentContainerStyle={{ paddingBottom: 100 }}
                     ListEmptyComponent={() => (
                         <Center>
-                            <ChatTeardropText  color={colors.gray[300]} size={40}/>
+                            <ChatTeardropText color={colors.gray[300]} size={40} />
                             <Text
                                 color="gray.300"
                                 fontSize="xl"
@@ -235,8 +245,8 @@ export default function Guests() {
                         </Center>
                     )}
                 />
-                <Button title="QRCODE" mt="2" onPress={() => setScanning(!scanning)}/>
+                <Button title="QRCODE" mt="2" onPress={() => setScanning(!scanning)} />
             </VStack>
         </VStack>
-        );
+    );
 }
