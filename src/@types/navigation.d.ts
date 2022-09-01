@@ -3,7 +3,8 @@ export declare global {
         interface RootParamList {
             guest: undefined;
             new: undefined;
-            details: { id: string }
+            details: { id: string };
+            barcode: undefined
         }
     }
 }
